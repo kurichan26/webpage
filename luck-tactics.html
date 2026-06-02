@@ -1,0 +1,1287 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>運命ダイス戦略</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        padding: 18px;
+        background: #172033;
+        color: #f8fafc;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      main {
+        width: min(100%, 1040px);
+        margin: 0 auto;
+        display: grid;
+        gap: 14px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(30px, 7vw, 64px);
+        line-height: 1;
+        letter-spacing: 0;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+        gap: 14px;
+        align-items: start;
+      }
+
+      .panel,
+      .card,
+      .choice {
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 8px;
+        background: #f8fafc;
+        color: #111827;
+      }
+
+      .panel {
+        padding: 14px;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        background: #0f172a;
+        border: 3px solid #ffffff;
+        color: #ffffff;
+      }
+
+      .stat {
+        padding: 8px 10px;
+        border-radius: 0;
+        background: transparent;
+      }
+
+      .label {
+        color: #cbd5e1;
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .value {
+        margin-top: 3px;
+        font-size: 24px;
+        font-weight: 950;
+        line-height: 1;
+      }
+
+      .board {
+        display: grid;
+        gap: 12px;
+      }
+
+      .enemy {
+        min-height: 168px;
+        padding: 18px;
+        border-radius: 8px;
+        background: #0f172a;
+        color: #ffffff;
+        display: grid;
+        grid-template-columns: 130px 1fr;
+        align-items: center;
+        gap: 10px;
+        box-shadow: inset 0 0 0 3px #ffffff, 0 10px 28px rgba(0, 0, 0, 0.24);
+      }
+
+      #enemyArt {
+        width: 120px;
+        height: 120px;
+        border: 2px solid #ffffff;
+        border-radius: 8px;
+        background: #111827;
+        image-rendering: pixelated;
+      }
+
+      .enemy-name {
+        font-size: 28px;
+        font-weight: 950;
+      }
+
+      .enemy-intent {
+        font-size: 16px;
+        font-weight: 800;
+      }
+
+      .enemy-stats {
+        margin-top: 8px;
+        display: grid;
+        gap: 5px;
+        font-size: 18px;
+        font-weight: 900;
+      }
+
+      .dice-row {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 10px;
+      }
+
+      .die {
+        aspect-ratio: 1;
+        border: 0;
+        border-radius: 8px;
+        background: #ffffff;
+        color: #111827;
+        cursor: pointer;
+        font-size: clamp(24px, 8vw, 46px);
+        font-weight: 950;
+        box-shadow: inset 0 0 0 3px #111827;
+      }
+
+      .die.held {
+        background: #facc15;
+      }
+
+      .die.rolling {
+        animation: roll-shake 420ms ease;
+      }
+
+      @keyframes roll-shake {
+        0% {
+          transform: rotate(0deg) scale(1);
+        }
+        30% {
+          transform: rotate(-13deg) scale(1.08);
+        }
+        62% {
+          transform: rotate(15deg) scale(1.04);
+        }
+        100% {
+          transform: rotate(0deg) scale(1);
+        }
+      }
+
+      .actions {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+      }
+
+      button {
+        min-height: 46px;
+        border: 0;
+        border-radius: 6px;
+        background: #2563eb;
+        color: #ffffff;
+        cursor: pointer;
+        font: inherit;
+        font-weight: 900;
+      }
+
+      button:hover {
+        background: #1d4ed8;
+      }
+
+      button:disabled {
+        background: #94a3b8;
+        cursor: not-allowed;
+      }
+
+      .choices {
+        display: grid;
+        gap: 10px;
+      }
+
+      .map {
+        display: grid;
+        gap: 10px;
+      }
+
+      .map-path {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 6px;
+      }
+
+      .map-node {
+        min-height: 34px;
+        display: grid;
+        place-items: center;
+        border: 2px solid #cbd5e1;
+        border-radius: 999px;
+        background: #e2e8f0;
+        color: #0f172a;
+        font-size: 12px;
+        font-weight: 950;
+      }
+
+      .map-node.current {
+        border-color: #facc15;
+        background: #fef08a;
+      }
+
+      .map-node.boss {
+        border-color: #ef4444;
+        background: #fecaca;
+      }
+
+      .choice {
+        padding: 12px;
+        text-align: left;
+      }
+
+      .choice strong {
+        display: block;
+        font-size: 17px;
+      }
+
+      .choice span {
+        display: block;
+        margin-top: 4px;
+        color: #475569;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .log {
+        display: none;
+        min-height: 156px;
+        max-height: 220px;
+        overflow: auto;
+        padding: 12px;
+        border-radius: 8px;
+        background: #0f172a;
+        color: #e2e8f0;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      .log.open {
+        display: block;
+      }
+
+      .help {
+        display: none;
+        padding: 12px;
+        border-radius: 8px;
+        background: #eef2ff;
+        color: #1e293b;
+        font-size: 14px;
+        line-height: 1.65;
+      }
+
+      .help.open {
+        display: block;
+      }
+
+      .help dl {
+        margin: 0;
+        display: grid;
+        gap: 8px;
+      }
+
+      .help dt {
+        font-weight: 950;
+      }
+
+      .help dd {
+        margin: 2px 0 0;
+        color: #475569;
+      }
+
+      @media (max-width: 820px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .stats,
+        .actions {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>運命ダイス戦略</h1>
+
+      <section class="layout">
+        <div class="board">
+          <div class="panel stats" aria-label="プレイヤー情報">
+            <div class="stat">
+              <div class="label">HP</div>
+              <div class="value" id="hp">30</div>
+            </div>
+            <div class="stat">
+              <div class="label">SHIELD</div>
+              <div class="value" id="shield">0</div>
+            </div>
+            <div class="stat">
+              <div class="label">COINS</div>
+              <div class="value" id="coins">0</div>
+            </div>
+            <div class="stat">
+              <div class="label">DEPTH</div>
+              <div class="value" id="floor">1</div>
+            </div>
+          </div>
+
+          <div class="enemy" aria-label="敵情報">
+            <canvas id="enemyArt" width="120" height="120" aria-label="敵の姿"></canvas>
+            <div>
+              <div class="enemy-name" id="enemyName">Slime</div>
+              <div class="enemy-stats">
+                <div id="enemyHp">HP 12</div>
+                <div id="enemyIntent">こうげき 4</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="label">DICE</div>
+            <div class="dice-summary" id="diceSummary">合計 5 / コンボ +0</div>
+            <div class="dice-row" id="dice"></div>
+          </div>
+
+          <div class="actions">
+            <button id="roll">ロール</button>
+            <button id="attack">攻撃</button>
+            <button id="guard">防御</button>
+          </div>
+        </div>
+
+        <aside class="board">
+          <div class="panel">
+            <div class="label">MAP</div>
+            <div class="map" id="map"></div>
+          </div>
+          <div class="panel">
+            <div class="label">TACTICS</div>
+            <div class="choices" id="choices"></div>
+          </div>
+          <button id="toggleHelp" type="button" aria-expanded="false">説明を表示</button>
+          <div class="help" id="help">
+            <dl>
+              <div>
+                <dt>HP</dt>
+                <dd>0になると敗北します。吸血を取ると敵撃破時に回復します。</dd>
+              </div>
+              <div>
+                <dt>SHIELD</dt>
+                <dd>敵の攻撃を受ける時、先に盾で防ぎます。残った分だけHPが減ります。</dd>
+              </div>
+              <div>
+                <dt>攻撃</dt>
+                <dd>ダイス合計 + コンボボーナス + 鋭い剣の効果を敵HPに与えます。</dd>
+              </div>
+              <div>
+                <dt>防御</dt>
+                <dd>ダイス合計の半分切り上げ + コンボボーナス + 厚い盾の効果をSHIELDに足します。</dd>
+              </div>
+              <div>
+                <dt>コンボ</dt>
+                <dd>3カード +5、4カード +10、5カード +18、ストレート +8。</dd>
+              </div>
+              <div>
+                <dt>アップグレード</dt>
+                <dd>鋭い剣/力の腕輪は攻撃増加、厚い盾/守りの腕輪は防御増加、鉄のよろいは被ダメージ軽減、幸運の札はロール回数+1。</dd>
+              </div>
+              <div>
+                <dt>基礎ステータス</dt>
+                <dd>体力訓練は最大HP、筋力訓練は基礎攻撃力、防御訓練は基礎防御力、盾術入門は戦闘開始時SHIELD、集中訓練はロール回数を増やします。</dd>
+              </div>
+              <div>
+                <dt>レリック</dt>
+                <dd>赤いレリックは3カード以上を強化、青いレリックは戦闘開始時SHIELD追加、金のレリックはストレート勝利時の報酬追加、命の器は最大HP増加。</dd>
+              </div>
+              <div>
+                <dt>ドロップとイベント</dt>
+                <dd>敵撃破時に確率でアイテムやレリックを入手します。戦闘後には宝箱や祠などのイベントが起きることもあります。</dd>
+              </div>
+              <div>
+                <dt>マップ</dt>
+                <dd>敵か強敵から次の行き先を選びます。強敵は強い代わりに追加報酬があり、10ステージごとに休憩、最後は必ずボスに到達します。</dd>
+              </div>
+            </dl>
+          </div>
+          <button id="toggleLog" type="button" aria-expanded="false">ログを表示</button>
+          <div class="log" id="log" aria-live="polite"></div>
+        </aside>
+      </section>
+    </main>
+
+    <script>
+      const diceEl = document.querySelector("#dice");
+      const diceSummaryEl = document.querySelector("#diceSummary");
+      const choicesEl = document.querySelector("#choices");
+      const mapEl = document.querySelector("#map");
+      const logEl = document.querySelector("#log");
+      const enemyArt = document.querySelector("#enemyArt");
+      const enemyCtx = enemyArt.getContext("2d");
+      const helpEl = document.querySelector("#help");
+      const hpEl = document.querySelector("#hp");
+      const shieldEl = document.querySelector("#shield");
+      const coinsEl = document.querySelector("#coins");
+      const floorEl = document.querySelector("#floor");
+      const enemyNameEl = document.querySelector("#enemyName");
+      const enemyIntentEl = document.querySelector("#enemyIntent");
+      const enemyHpEl = document.querySelector("#enemyHp");
+      const rollButton = document.querySelector("#roll");
+      const attackButton = document.querySelector("#attack");
+      const guardButton = document.querySelector("#guard");
+      const toggleHelpButton = document.querySelector("#toggleHelp");
+      const toggleLogButton = document.querySelector("#toggleLog");
+
+      const enemyPool = [
+        { name: "スライム", family: "slime", hp: 12, attack: 4, color: "#38bdf8" },
+        { name: "レッドスライム", family: "slime", hp: 14, attack: 6, color: "#fb7185" },
+        { name: "メタルスライム", family: "slime", hp: 10, attack: 9, color: "#cbd5e1" },
+        { name: "キノコ", family: "mushroom", hp: 14, attack: 5, color: "#dc2626" },
+        { name: "毒キノコ", family: "mushroom", hp: 18, attack: 7, color: "#9333ea" },
+        { name: "盗賊", family: "bandit", hp: 16, attack: 6, color: "#7c2d12" },
+        { name: "黒盗賊", family: "bandit", hp: 20, attack: 8, color: "#111827" },
+        { name: "コウモリ", family: "bat", hp: 15, attack: 7, color: "#4c1d95" },
+        { name: "赤コウモリ", family: "bat", hp: 17, attack: 9, color: "#991b1b" },
+        { name: "ゴーレム", family: "golem", hp: 22, attack: 8, color: "#57534e" },
+        { name: "氷ゴーレム", family: "golem", hp: 24, attack: 7, color: "#67e8f9" },
+        { name: "占い師", family: "oracle", hp: 18, attack: 5, color: "#581c87" },
+        { name: "炎の占い師", family: "oracle", hp: 20, attack: 8, color: "#c2410c" },
+        { name: "ミミック", family: "mimic", hp: 24, attack: 9, color: "#78350f" },
+        { name: "金ミミック", family: "mimic", hp: 20, attack: 11, color: "#ca8a04" },
+        { name: "ドラゴン", family: "dragon", hp: 30, attack: 10, color: "#ef4444" },
+        { name: "蒼ドラゴン", family: "dragon", hp: 34, attack: 9, color: "#2563eb" },
+        { name: "オオカミ", family: "wolf", hp: 19, attack: 8, color: "#64748b" },
+        { name: "白オオカミ", family: "wolf", hp: 22, attack: 9, color: "#e5e7eb" },
+        { name: "火オオカミ", family: "wolf", hp: 21, attack: 11, color: "#f97316" },
+        { name: "サソリ", family: "scorpion", hp: 18, attack: 10, color: "#a16207" },
+        { name: "毒サソリ", family: "scorpion", hp: 20, attack: 12, color: "#7e22ce" },
+        { name: "砂サソリ", family: "scorpion", hp: 24, attack: 9, color: "#d97706" },
+        { name: "ゴースト", family: "ghost", hp: 16, attack: 8, color: "#c4b5fd" },
+        { name: "黒ゴースト", family: "ghost", hp: 20, attack: 11, color: "#4c1d95" },
+        { name: "氷ゴースト", family: "ghost", hp: 18, attack: 10, color: "#bae6fd" },
+        { name: "リザード", family: "lizard", hp: 24, attack: 10, color: "#16a34a" },
+        { name: "赤リザード", family: "lizard", hp: 26, attack: 12, color: "#dc2626" },
+        { name: "沼リザード", family: "lizard", hp: 30, attack: 9, color: "#365314" },
+        { name: "ナイト", family: "knight", hp: 28, attack: 11, color: "#94a3b8" },
+        { name: "黒ナイト", family: "knight", hp: 32, attack: 13, color: "#1f2937" },
+        { name: "金ナイト", family: "knight", hp: 30, attack: 15, color: "#ca8a04" },
+      ];
+      const nodeLabels = {
+        enemy: ["敵", "通常戦闘"],
+        elite: ["強敵", "少し強い敵。勝つと追加報酬。"],
+        rest: ["休憩", "HPを回復して次へ進む。"],
+        boss: ["ボス", "最後に必ず待つ決戦。"],
+      };
+
+      const upgrades = [
+        { name: "鋭い剣", text: "攻撃の合計値 +3", apply: () => state.attackBonus += 3 },
+        { name: "厚い盾", text: "防御の合計値 +3", apply: () => state.guardBonus += 3 },
+        { name: "力の腕輪", text: "攻撃の合計値 +5", apply: () => state.attackBonus += 5 },
+        { name: "守りの腕輪", text: "防御の合計値 +5", apply: () => state.guardBonus += 5 },
+        { name: "鉄のよろい", text: "受けるダメージ -2", apply: () => state.damageReduction += 2 },
+        { name: "幸運の札", text: "ロール回数 +1", apply: () => state.maxRolls += 1 },
+        { name: "吸血", text: "敵を倒すたび HP +3", apply: () => state.lifesteal += 3 },
+        { name: "商人の勘", text: "報酬コイン +2", apply: () => state.coinBonus += 2 },
+        { name: "赤いレリック", text: "3カード以上のコンボボーナス +4", apply: () => state.comboBoost += 4 },
+        { name: "青いレリック", text: "戦闘開始時 SHIELD +5", apply: () => state.startShield += 5 },
+        { name: "金のレリック", text: "ストレート時に追加コイン +3", apply: () => state.straightCoinBonus += 3 },
+        { name: "盗賊の手袋", text: "敵撃破時のドロップ率 +15%", apply: () => state.dropBonus += 0.15 },
+        { name: "命の器", text: "最大HP +6してHPも6回復", apply: () => {
+          state.maxHp += 6;
+          state.hp = Math.min(state.maxHp, state.hp + 6);
+        } },
+        { name: "体力訓練", text: "基礎最大HP +4", apply: () => {
+          state.maxHp += 4;
+          state.hp = Math.min(state.maxHp, state.hp + 4);
+        } },
+        { name: "筋力訓練", text: "基礎攻撃力 +2", apply: () => state.baseAttack += 2 },
+        { name: "防御訓練", text: "基礎防御力 +2", apply: () => state.baseGuard += 2 },
+        { name: "盾術入門", text: "戦闘開始時の基礎SHIELD +3", apply: () => state.startShield += 3 },
+        { name: "集中訓練", text: "基礎ロール回数 +1", apply: () => state.maxRolls += 1 },
+      ];
+
+      const state = {
+        hp: 30,
+        maxHp: 30,
+        shield: 0,
+        coins: 0,
+        floor: 1,
+        dungeonLevel: 1,
+        dice: [1, 1, 1, 1, 1],
+        held: [false, false, false, false, false],
+        rolls: 0,
+        maxRolls: 2,
+        enemy: null,
+        currentNode: null,
+        routeDepth: 0,
+        maxDepth: 20,
+        mapChoices: [],
+        phase: "map",
+        baseAttack: 0,
+        baseGuard: 0,
+        attackBonus: 0,
+        guardBonus: 0,
+        damageReduction: 0,
+        lifesteal: 0,
+        coinBonus: 0,
+        comboBoost: 0,
+        startShield: 0,
+        straightCoinBonus: 0,
+        dropBonus: 0,
+        choosing: false,
+        over: false,
+        rolling: false,
+      };
+
+      function rollDie() {
+        return Math.floor(Math.random() * 6) + 1;
+      }
+
+      function start() {
+        state.dice = state.dice.map(() => rollDie());
+        state.held = state.held.map(() => false);
+        state.rolls = 0;
+        state.shield = state.startShield;
+        state.phase = "map";
+        state.currentNode = null;
+        state.mapChoices = buildRouteChoices();
+        writeLog("次の行き先を選んでください。どのルートでも最後はボスです。");
+        render();
+      }
+
+      function makeEnemy(type = "enemy") {
+        const depthScale = state.dungeonLevel - 1;
+        if (type === "boss") {
+          const hp = 48 + state.floor * 5 + depthScale * 18;
+          const attack = 12 + Math.floor(state.floor * 1.8) + depthScale * 4;
+          const name = depthScale === 0 ? "魔王" : `地下${state.dungeonLevel}階の魔王`;
+          return { name, family: "boss", color: "#7f1d1d", hp, maxHp: hp, attack };
+        }
+
+        const base = enemyPool[Math.min(enemyPool.length - 1, Math.floor((state.floor - 1) / 2))];
+        const scale = state.floor - 1 + depthScale * 2;
+        const elite = type === "elite";
+        const hp = Math.floor((base.hp + scale * 4) * (elite ? 1.55 : 1));
+        const attack = base.attack + Math.floor(scale * 1.5) + (elite ? 4 : 0);
+        return {
+          name: elite ? `エリート${base.name}` : base.name,
+          family: base.family,
+          color: base.color,
+          hp,
+          maxHp: hp,
+          attack,
+        };
+      }
+
+      function rollDice() {
+        if (state.phase !== "battle" || state.rolls >= state.maxRolls || state.choosing || state.over) return;
+        state.rolling = true;
+        render();
+        state.dice = state.dice.map((value, index) => state.held[index] ? value : rollDie());
+        state.rolls++;
+        writeLog(`ロール ${state.rolls}/${state.maxRolls}`);
+        setTimeout(() => {
+          state.rolling = false;
+          render();
+        }, 420);
+      }
+
+      function toggleHold(index) {
+        if (state.phase !== "battle" || state.choosing || state.over) return;
+        state.held[index] = !state.held[index];
+        render();
+      }
+
+      function attack() {
+        if (state.phase !== "battle" || state.choosing || state.over) return;
+        const total = diceTotal() + comboBonus() + state.baseAttack + state.attackBonus;
+        state.enemy.hp -= total;
+        writeLog(`攻撃 ${total}。${state.enemy.name} に命中。`);
+        if (state.enemy.hp <= 0) {
+          winBattle();
+          return;
+        }
+        enemyTurn();
+      }
+
+      function guard() {
+        if (state.phase !== "battle" || state.choosing || state.over) return;
+        const total = Math.ceil(diceTotal() / 2) + comboBonus() + state.baseGuard + state.guardBonus;
+        state.shield += total;
+        writeLog(`防御 ${total}。盾を構えた。`);
+        enemyTurn();
+      }
+
+      function enemyTurn() {
+        const damage = Math.max(0, state.enemy.attack - state.shield - state.damageReduction);
+        state.shield = Math.max(0, state.shield - state.enemy.attack);
+        state.hp -= damage;
+        if (damage > 0) writeLog(`${state.enemy.name} の攻撃。${damage} ダメージ。`);
+        if (damage === 0) writeLog(`${state.enemy.name} の攻撃を防いだ。`);
+
+        if (state.hp <= 0) {
+          state.hp = 0;
+          state.over = true;
+          writeLog("敗北。ページを更新すると再挑戦できます。");
+        } else {
+          nextTurn();
+        }
+        render();
+      }
+
+      function nextTurn() {
+        state.dice = state.dice.map(() => rollDie());
+        state.held = state.held.map(() => false);
+        state.rolls = 0;
+      }
+
+      function buildRouteChoices() {
+        if (state.routeDepth >= state.maxDepth) {
+          return [{ type: "boss" }];
+        }
+
+        if ((state.routeDepth + 1) % 10 === 0) {
+          return [{ type: "rest" }];
+        }
+
+        const templates = [
+          [{ type: "enemy" }, { type: "enemy" }, { type: "elite" }],
+          [{ type: "enemy" }, { type: "elite" }, { type: "enemy" }],
+          [{ type: "elite" }, { type: "enemy" }, { type: "enemy" }],
+        ];
+        return templates[state.routeDepth % templates.length];
+      }
+
+      function chooseRoute(node) {
+        state.currentNode = node;
+        state.mapChoices = [];
+        state.routeDepth++;
+        state.floor = state.dungeonLevel;
+        state.choosing = false;
+        choicesEl.innerHTML = "";
+
+        if (node.type === "rest") {
+          const heal = Math.floor(state.maxHp * 0.5);
+          state.hp = Math.min(state.maxHp, state.hp + heal);
+          writeLog(`休憩地点。HPが ${heal} 回復。`);
+          state.currentNode = null;
+          state.phase = "map";
+          state.mapChoices = buildRouteChoices();
+          render();
+          return;
+        }
+
+        state.enemy = makeEnemy(node.type);
+        state.phase = "battle";
+        state.shield = state.startShield;
+        nextTurn();
+        const label = nodeLabels[node.type][0];
+        writeLog(`${label}: ${state.enemy.name} が現れた。`);
+        render();
+      }
+
+      function winBattle() {
+        state.coins += 4 + state.floor + state.coinBonus + straightRewardBonus();
+        state.hp = Math.min(state.maxHp, state.hp + state.lifesteal);
+        maybeDropReward();
+        maybeTriggerEvent();
+        if (state.currentNode?.type === "elite") {
+          const reward = randomUpgrade();
+          reward.apply();
+          writeLog(`エリート報酬: ${reward.name} を獲得。`);
+        }
+        if (state.currentNode?.type === "boss") {
+          advanceDungeonLevel();
+          render();
+          return;
+        }
+        state.shield = 0;
+        state.choosing = true;
+        state.phase = "reward";
+        writeLog(`勝利。コインを獲得。次の戦略を選んでください。`);
+        showChoices();
+        render();
+      }
+
+      function advanceDungeonLevel() {
+        state.dungeonLevel++;
+        state.floor = state.dungeonLevel;
+        state.routeDepth = 0;
+        state.currentNode = null;
+        state.enemy = null;
+        state.shield = 0;
+        state.choosing = false;
+        state.phase = "map";
+        state.mapChoices = buildRouteChoices();
+        const heal = Math.max(6, Math.floor(state.maxHp * 0.18));
+        state.hp = Math.min(state.maxHp, state.hp + heal);
+        writeLog(`ボスを倒した。地下${state.dungeonLevel}階へ進んだ。HPが ${heal} 回復。`);
+        writeLog("新たな敵が待ち受けている。次の行き先を選んでください。");
+      }
+
+      function maybeDropReward() {
+        const chance = Math.min(0.8, 0.3 + state.dropBonus);
+        if (Math.random() > chance) return;
+        const reward = randomUpgrade();
+        reward.apply();
+        writeLog(`ドロップ: ${reward.name} を手に入れた。${reward.text}`);
+      }
+
+      function maybeTriggerEvent() {
+        if (Math.random() > 0.28) return;
+        const events = [
+          {
+            name: "古い宝箱",
+            run: () => {
+              const reward = randomUpgrade();
+              reward.apply();
+              writeLog(`イベント: 古い宝箱から ${reward.name} を見つけた。`);
+            },
+          },
+          {
+            name: "修行場",
+            run: () => {
+              state.baseAttack += 1;
+              state.baseGuard += 1;
+              writeLog("イベント: 修行場で基礎攻撃力と基礎防御力が +1。");
+            },
+          },
+          {
+            name: "いやしの泉",
+            run: () => {
+              const heal = 6 + Math.floor(state.floor / 2);
+              state.hp = Math.min(state.maxHp, state.hp + heal);
+              writeLog(`イベント: いやしの泉で HP が ${heal} 回復。`);
+            },
+          },
+          {
+            name: "旅の商人",
+            run: () => {
+              state.coins += 6;
+              writeLog("イベント: 旅の商人から支援金 6 コインを受け取った。");
+            },
+          },
+          {
+            name: "祈りの祠",
+            run: () => {
+              state.startShield += 2;
+              writeLog("イベント: 祈りの祠で戦闘開始時SHIELDが +2。");
+            },
+          },
+        ];
+        const event = events[Math.floor(Math.random() * events.length)];
+        event.run();
+      }
+
+      function randomUpgrade() {
+        return upgrades[Math.floor(Math.random() * upgrades.length)];
+      }
+
+      function chooseUpgrade(upgrade) {
+        upgrade.apply();
+        state.choosing = false;
+        state.enemy = null;
+        state.currentNode = null;
+        state.phase = "map";
+        state.mapChoices = buildRouteChoices();
+        writeLog(`${upgrade.name} を獲得。`);
+        writeLog("次の行き先を選んでください。");
+        render();
+      }
+
+      function diceTotal() {
+        return state.dice.reduce((sum, value) => sum + value, 0);
+      }
+
+      function comboBonus() {
+        const counts = new Map();
+        state.dice.forEach((value) => counts.set(value, (counts.get(value) || 0) + 1));
+        const max = Math.max(...counts.values());
+        if (max >= 5) return 18 + state.comboBoost;
+        if (max >= 4) return 10 + state.comboBoost;
+        if (max >= 3) return 5 + state.comboBoost;
+        if (isStraight()) return 8;
+        return 0;
+      }
+
+      function isStraight() {
+        const counts = new Map();
+        state.dice.forEach((value) => counts.set(value, (counts.get(value) || 0) + 1));
+        return [1, 2, 3, 4, 5].every((value) => counts.has(value)) ||
+          [2, 3, 4, 5, 6].every((value) => counts.has(value));
+      }
+
+      function straightRewardBonus() {
+        return isStraight() ? state.straightCoinBonus : 0;
+      }
+
+      function showChoices() {
+        choicesEl.innerHTML = "";
+        const picked = upgrades
+          .slice()
+          .sort(() => Math.random() - 0.5)
+          .slice(0, 3);
+        picked.forEach((upgrade) => {
+          const button = document.createElement("button");
+          button.className = "choice";
+          button.innerHTML = `<strong>${upgrade.name}</strong><span>${upgrade.text}</span>`;
+          button.addEventListener("click", () => chooseUpgrade(upgrade));
+          choicesEl.appendChild(button);
+        });
+      }
+
+      function clearChoices() {
+        if (state.choosing) return;
+        choicesEl.innerHTML = "";
+      }
+
+      function showRouteChoices() {
+        choicesEl.innerHTML = "";
+        state.mapChoices.forEach((node) => {
+          const [title, text] = nodeLabels[node.type];
+          const button = document.createElement("button");
+          button.className = "choice";
+          button.innerHTML = `<strong>${title}</strong><span>${text}</span>`;
+          button.addEventListener("click", () => chooseRoute(node));
+          choicesEl.appendChild(button);
+        });
+      }
+
+      function renderMap() {
+        mapEl.innerHTML = "";
+        const title = document.createElement("div");
+        title.className = "label";
+        title.textContent = `地下${state.dungeonLevel}階`;
+        mapEl.appendChild(title);
+        const path = document.createElement("div");
+        path.className = "map-path";
+        for (let index = 0; index <= state.maxDepth; index++) {
+          const node = document.createElement("div");
+          const isBoss = index === state.maxDepth;
+          node.className = `map-node${index === state.routeDepth ? " current" : ""}${isBoss ? " boss" : ""}`;
+          node.textContent = isBoss ? "BOSS" : index === 0 ? "START" : index;
+          path.appendChild(node);
+        }
+        mapEl.appendChild(path);
+      }
+
+      function writeLog(message) {
+        const line = document.createElement("div");
+        line.textContent = message;
+        logEl.prepend(line);
+      }
+
+      function toggleLog() {
+        const isOpen = logEl.classList.toggle("open");
+        toggleLogButton.textContent = isOpen ? "ログを隠す" : "ログを表示";
+        toggleLogButton.setAttribute("aria-expanded", isOpen);
+      }
+
+      function toggleHelp() {
+        const isOpen = helpEl.classList.toggle("open");
+        toggleHelpButton.textContent = isOpen ? "説明を隠す" : "説明を表示";
+        toggleHelpButton.setAttribute("aria-expanded", isOpen);
+      }
+
+      function drawEnemy() {
+        const name = state.enemy.name;
+        const family = state.enemy.family;
+        const color = state.enemy.color;
+        enemyCtx.clearRect(0, 0, enemyArt.width, enemyArt.height);
+        drawEnemyStage();
+
+        if (family === "slime") drawSlime(color);
+        if (family === "mushroom") drawMushroom(color);
+        if (family === "bandit") drawBandit(color);
+        if (family === "bat") drawBat(color);
+        if (family === "golem") drawGolem(color);
+        if (family === "oracle") drawOracle(color);
+        if (family === "mimic") drawMimic(color);
+        if (family === "dragon") drawDragon(color);
+        if (family === "wolf") drawWolf(color);
+        if (family === "scorpion") drawScorpion(color);
+        if (family === "ghost") drawGhost(color);
+        if (family === "lizard") drawLizard(color);
+        if (family === "knight") drawKnight(color);
+        if (family === "boss") drawBoss();
+      }
+
+      function drawEnemyStage() {
+        const gradient = enemyCtx.createLinearGradient(0, 0, 0, 120);
+        gradient.addColorStop(0, "#172554");
+        gradient.addColorStop(0.62, "#0f172a");
+        gradient.addColorStop(1, "#020617");
+        enemyCtx.fillStyle = gradient;
+        enemyCtx.fillRect(0, 0, 120, 120);
+        enemyCtx.fillStyle = "rgba(255, 255, 255, 0.12)";
+        enemyCtx.beginPath();
+        enemyCtx.ellipse(60, 96, 42, 10, 0, 0, Math.PI * 2);
+        enemyCtx.fill();
+      }
+
+      function drawEye(x, y) {
+        enemyCtx.fillStyle = "#ffffff";
+        enemyCtx.beginPath();
+        enemyCtx.arc(x, y, 5, 0, Math.PI * 2);
+        enemyCtx.fill();
+        enemyCtx.fillStyle = "#111827";
+        enemyCtx.beginPath();
+        enemyCtx.arc(x + 1, y + 1, 2.5, 0, Math.PI * 2);
+        enemyCtx.fill();
+      }
+
+      function drawSlime(color) {
+        enemyCtx.fillStyle = color;
+        enemyCtx.beginPath();
+        enemyCtx.moveTo(60, 22);
+        enemyCtx.quadraticCurveTo(84, 48, 94, 72);
+        enemyCtx.quadraticCurveTo(98, 100, 60, 104);
+        enemyCtx.quadraticCurveTo(22, 100, 26, 72);
+        enemyCtx.quadraticCurveTo(36, 48, 60, 22);
+        enemyCtx.fill();
+        enemyCtx.strokeStyle = "#e0f2fe";
+        enemyCtx.lineWidth = 3;
+        enemyCtx.stroke();
+        enemyCtx.fillStyle = "rgba(255, 255, 255, 0.35)";
+        enemyCtx.beginPath();
+        enemyCtx.ellipse(46, 54, 10, 6, -0.5, 0, Math.PI * 2);
+        enemyCtx.fill();
+        drawEye(48, 72);
+        drawEye(72, 72);
+        enemyCtx.strokeStyle = "#0f172a";
+        enemyCtx.lineWidth = 3;
+        enemyCtx.beginPath();
+        enemyCtx.arc(60, 82, 11, 0.15, Math.PI - 0.15);
+        enemyCtx.stroke();
+      }
+
+      function drawMushroom(color) {
+        enemyCtx.fillStyle = "#fef3c7";
+        enemyCtx.fillRect(50, 58, 22, 38);
+        enemyCtx.fillStyle = color;
+        enemyCtx.beginPath();
+        enemyCtx.ellipse(60, 52, 42, 24, 0, 0, Math.PI * 2);
+        enemyCtx.fill();
+        enemyCtx.fillStyle = "#fee2e2";
+        enemyCtx.beginPath();
+        enemyCtx.arc(43, 48, 7, 0, Math.PI * 2);
+        enemyCtx.arc(62, 38, 8, 0, Math.PI * 2);
+        enemyCtx.arc(78, 56, 6, 0, Math.PI * 2);
+        enemyCtx.fill();
+        drawEye(53, 73);
+        drawEye(68, 73);
+      }
+
+      function drawBandit(color) {
+        enemyCtx.fillStyle = color;
+        enemyCtx.beginPath();
+        enemyCtx.roundRect(34, 38, 52, 56, 12);
+        enemyCtx.fill();
+        enemyCtx.fillStyle = "#fed7aa";
+        enemyCtx.beginPath();
+        enemyCtx.roundRect(42, 32, 36, 34, 10);
+        enemyCtx.fill();
+        enemyCtx.fillStyle = "#111827";
+        enemyCtx.fillRect(39, 45, 42, 13);
+        drawEye(51, 52);
+        drawEye(69, 52);
+        enemyCtx.fillStyle = "#cbd5e1";
+        enemyCtx.fillRect(76, 74, 28, 6);
+        enemyCtx.fillStyle = "#94a3b8";
+        enemyCtx.fillRect(98, 70, 5, 14);
+      }
+
+      function drawBat(color) {
+        enemyCtx.fillStyle = "#312e81";
+        enemyCtx.beginPath();
+        enemyCtx.moveTo(56, 58);
+        enemyCtx.lineTo(22, 42);
+        enemyCtx.lineTo(36, 72);
+        enemyCtx.lineTo(50, 66);
+        enemyCtx.closePath();
+        enemyCtx.fill();
+        enemyCtx.beginPath();
+        enemyCtx.moveTo(64, 58);
+        enemyCtx.lineTo(98, 42);
+        enemyCtx.lineTo(84, 72);
+        enemyCtx.lineTo(70, 66);
+        enemyCtx.closePath();
+        enemyCtx.fill();
+        enemyCtx.fillStyle = color;
+        enemyCtx.beginPath();
+        enemyCtx.ellipse(60, 66, 20, 24, 0, 0, Math.PI * 2);
+        enemyCtx.fill();
+        drawEye(53, 62);
+        drawEye(67, 62);
+        enemyCtx.fillStyle = "#f8fafc";
+        enemyCtx.fillRect(55, 78, 4, 8);
+        enemyCtx.fillRect(63, 78, 4, 8);
+      }
+
+      function drawGolem(color) {
+        enemyCtx.fillStyle = color;
+        enemyCtx.fillRect(34, 30, 52, 66);
+        enemyCtx.fillStyle = "#78716c";
+        enemyCtx.fillRect(24, 54, 18, 38);
+        enemyCtx.fillRect(78, 54, 18, 38);
+        enemyCtx.fillStyle = "#a8a29e";
+        enemyCtx.fillRect(40, 36, 40, 10);
+        enemyCtx.fillRect(42, 72, 36, 8);
+        enemyCtx.fillStyle = "#facc15";
+        enemyCtx.fillRect(46, 56, 8, 7);
+        enemyCtx.fillRect(66, 56, 8, 7);
+        enemyCtx.fillStyle = "#292524";
+        enemyCtx.fillRect(48, 84, 24, 5);
+        enemyCtx.strokeStyle = "#d6d3d1";
+        enemyCtx.lineWidth = 2;
+        enemyCtx.strokeRect(34, 30, 52, 66);
+      }
+
+      function drawMimic(color) {
+        enemyCtx.fillStyle = color;
+        enemyCtx.fillRect(28, 52, 64, 42);
+        enemyCtx.fillStyle = "#facc15";
+        enemyCtx.fillRect(28, 50, 64, 8);
+        enemyCtx.fillRect(56, 50, 8, 44);
+        enemyCtx.strokeStyle = "#451a03";
+        enemyCtx.lineWidth = 4;
+        enemyCtx.strokeRect(28, 52, 64, 42);
+        enemyCtx.fillStyle = "#111827";
+        enemyCtx.beginPath();
+        enemyCtx.arc(60, 72, 18, 0, Math.PI * 2);
+        enemyCtx.fill();
+        enemyCtx.fillStyle = "#ef4444";
+        enemyCtx.fillRect(46, 72, 28, 8);
+        enemyCtx.fillStyle = "#f8fafc";
+        enemyCtx.fillRect(48, 62, 5, 8);
+        enemyCtx.fillRect(68, 62, 5, 8);
+      }
+
+      function drawOracle(color) {
+        enemyCtx.fillStyle = color;
+        enemyCtx.beginPath();
+        enemyCtx.moveTo(60, 20);
+        enemyCtx.lineTo(92, 94);
+        enemyCtx.lineTo(28, 94);
+        enemyCtx.closePath();
+        enemyCtx.fill();
+        enemyCtx.strokeStyle = "#e9d5ff";
+        enemyCtx.lineWidth = 3;
+        enemyCtx.stroke();
+        enemyCtx.fillStyle = "#fef3c7";
+        enemyCtx.beginPath();
+        enemyCtx.arc(60, 54, 18, 0, Math.PI * 2);
+        enemyCtx.fill();
+        drawEye(54, 53);
+        drawEye(66, 53);
+        enemyCtx.strokeStyle = "#38bdf8";
+        enemyCtx.lineWidth = 4;
+        enemyCtx.beginPath();
+        enemyCtx.arc(60, 92, 13, 0, Math.PI * 2);
+        enemyCtx.stroke();
+      }
+
+      function drawDragon(color) {
+        enemyCtx.fillStyle = color;
+        enemyCtx.beginPath();
+        enemyCtx.moveTo(24, 88);
+        enemyCtx.quadraticCurveTo(34, 38, 60, 34);
+        enemyCtx.quadraticCurveTo(88, 36, 98, 88);
+        enemyCtx.closePath();
+        enemyCtx.fill();
+        enemyCtx.strokeStyle = "#fecaca";
+        enemyCtx.lineWidth = 3;
+        enemyCtx.stroke();
+        enemyCtx.fillStyle = "#facc15";
+        enemyCtx.beginPath();
+        enemyCtx.moveTo(42, 36);
+        enemyCtx.lineTo(50, 14);
+        enemyCtx.lineTo(58, 38);
+        enemyCtx.moveTo(66, 38);
+        enemyCtx.lineTo(78, 16);
+        enemyCtx.lineTo(82, 44);
+        enemyCtx.fill();
+        drawEye(50, 60);
+        drawEye(74, 60);
+        enemyCtx.fillStyle = "#111827";
+        enemyCtx.fillRect(54, 78, 6, 10);
+        enemyCtx.fillRect(66, 78, 6, 10);
+      }
+
+      function drawWolf(color) {
+        enemyCtx.fillStyle = color;
+        enemyCtx.beginPath();
+        enemyCtx.ellipse(60, 70, 34, 24, 0, 0, Math.PI * 2);
+        enemyCtx.fill();
+        enemyCtx.beginPath();
+        enemyCtx.moveTo(36, 52);
+        enemyCtx.lineTo(46, 28);
+        enemyCtx.lineTo(56, 54);
+        enemyCtx.moveTo(64, 54);
+        enemyCtx.lineTo(76, 28);
+        enemyCtx.lineTo(84, 54);
+        enemyCtx.fill();
+        drawEye(50, 66);
+        drawEye(70, 66);
+        enemyCtx.fillStyle = "#111827";
+        enemyCtx.fillRect(56, 80, 12, 5);
+      }
+
+      function drawScorpion(color) {
+        enemyCtx.fillStyle = color;
+        enemyCtx.beginPath();
+        enemyCtx.ellipse(58, 76, 32, 20, 0, 0, Math.PI * 2);
+        enemyCtx.fill();
+        enemyCtx.strokeStyle = color;
+        enemyCtx.lineWidth = 6;
+        enemyCtx.beginPath();
+        enemyCtx.moveTo(82, 66);
+        enemyCtx.quadraticCurveTo(98, 42, 76, 32);
+        enemyCtx.stroke();
+        enemyCtx.fillStyle = "#f8fafc";
+        enemyCtx.beginPath();
+        enemyCtx.moveTo(75, 28);
+        enemyCtx.lineTo(88, 34);
+        enemyCtx.lineTo(76, 40);
+        enemyCtx.closePath();
+        enemyCtx.fill();
+        drawEye(48, 72);
+        drawEye(66, 72);
+      }
+
+      function drawGhost(color) {
+        enemyCtx.fillStyle = color;
+        enemyCtx.beginPath();
+        enemyCtx.arc(60, 58, 30, Math.PI, 0);
+        enemyCtx.lineTo(90, 94);
+        enemyCtx.lineTo(78, 86);
+        enemyCtx.lineTo(66, 96);
+        enemyCtx.lineTo(54, 86);
+        enemyCtx.lineTo(42, 96);
+        enemyCtx.lineTo(30, 94);
+        enemyCtx.closePath();
+        enemyCtx.fill();
+        drawEye(50, 60);
+        drawEye(70, 60);
+        enemyCtx.fillStyle = "#111827";
+        enemyCtx.beginPath();
+        enemyCtx.arc(60, 78, 6, 0, Math.PI * 2);
+        enemyCtx.fill();
+      }
+
+      function drawLizard(color) {
+        enemyCtx.fillStyle = color;
+        enemyCtx.beginPath();
+        enemyCtx.ellipse(62, 70, 36, 20, 0, 0, Math.PI * 2);
+        enemyCtx.fill();
+        enemyCtx.beginPath();
+        enemyCtx.moveTo(30, 72);
+        enemyCtx.lineTo(14, 58);
+        enemyCtx.lineTo(32, 62);
+        enemyCtx.fill();
+        enemyCtx.fillStyle = "#bbf7d0";
+        enemyCtx.fillRect(44, 80, 36, 6);
+        drawEye(54, 64);
+        drawEye(76, 64);
+      }
+
+      function drawKnight(color) {
+        enemyCtx.fillStyle = color;
+        enemyCtx.fillRect(38, 38, 44, 54);
+        enemyCtx.fillStyle = "#e5e7eb";
+        enemyCtx.fillRect(42, 26, 36, 28);
+        enemyCtx.fillStyle = "#111827";
+        enemyCtx.fillRect(46, 40, 28, 6);
+        enemyCtx.fillStyle = "#facc15";
+        enemyCtx.fillRect(56, 54, 10, 36);
+        enemyCtx.strokeStyle = "#020617";
+        enemyCtx.lineWidth = 3;
+        enemyCtx.strokeRect(38, 38, 44, 54);
+        enemyCtx.fillStyle = "#94a3b8";
+        enemyCtx.fillRect(82, 62, 18, 6);
+      }
+
+      function drawBoss() {
+        enemyCtx.fillStyle = "#111827";
+        enemyCtx.beginPath();
+        enemyCtx.moveTo(22, 94);
+        enemyCtx.lineTo(34, 30);
+        enemyCtx.lineTo(60, 48);
+        enemyCtx.lineTo(86, 30);
+        enemyCtx.lineTo(98, 94);
+        enemyCtx.closePath();
+        enemyCtx.fill();
+        enemyCtx.strokeStyle = "#ef4444";
+        enemyCtx.lineWidth = 4;
+        enemyCtx.stroke();
+        enemyCtx.fillStyle = "#7f1d1d";
+        enemyCtx.beginPath();
+        enemyCtx.arc(60, 58, 24, 0, Math.PI * 2);
+        enemyCtx.fill();
+        enemyCtx.fillStyle = "#facc15";
+        enemyCtx.beginPath();
+        enemyCtx.moveTo(44, 36);
+        enemyCtx.lineTo(52, 14);
+        enemyCtx.lineTo(60, 38);
+        enemyCtx.lineTo(70, 14);
+        enemyCtx.lineTo(76, 38);
+        enemyCtx.fill();
+        drawEye(52, 58);
+        drawEye(68, 58);
+        enemyCtx.fillStyle = "#f8fafc";
+        enemyCtx.fillRect(52, 78, 6, 12);
+        enemyCtx.fillRect(64, 78, 6, 12);
+      }
+
+      function render() {
+        hpEl.textContent = `${state.hp}/${state.maxHp}`;
+        shieldEl.textContent = state.shield;
+        coinsEl.textContent = state.coins;
+        floorEl.textContent = state.floor;
+        renderMap();
+
+        if (state.enemy) {
+          enemyNameEl.textContent = state.enemy.name;
+          enemyIntentEl.textContent = `こうげき ${state.enemy.attack}`;
+          enemyHpEl.textContent = `HP ${Math.max(0, state.enemy.hp)}/${state.enemy.maxHp}`;
+          drawEnemy();
+        } else {
+          enemyNameEl.textContent = state.phase === "map" ? "行き先を選択" : "報酬選択";
+          enemyIntentEl.textContent = state.routeDepth >= state.maxDepth ? "ボス目前" : "ルート分岐";
+          enemyHpEl.textContent = "MAP";
+          drawEnemyStage();
+        }
+        diceSummaryEl.textContent = `合計 ${diceTotal()} / コンボ +${comboBonus()}`;
+
+        diceEl.innerHTML = "";
+        state.dice.forEach((value, index) => {
+          const button = document.createElement("button");
+          const rolling = state.rolling && !state.held[index] ? " rolling" : "";
+          button.className = `die${state.held[index] ? " held" : ""}${rolling}`;
+          button.textContent = value;
+          button.addEventListener("click", () => toggleHold(index));
+          diceEl.appendChild(button);
+        });
+
+        rollButton.disabled = state.phase !== "battle" || state.rolls >= state.maxRolls || state.choosing || state.over;
+        attackButton.disabled = state.phase !== "battle" || state.choosing || state.over;
+        guardButton.disabled = state.phase !== "battle" || state.choosing || state.over;
+        if (state.phase === "map" && !state.over) showRouteChoices();
+        if (state.phase !== "map") clearChoices();
+      }
+
+      rollButton.addEventListener("click", rollDice);
+      attackButton.addEventListener("click", attack);
+      guardButton.addEventListener("click", guard);
+      toggleHelpButton.addEventListener("click", toggleHelp);
+      toggleLogButton.addEventListener("click", toggleLog);
+
+      start();
+    </script>
+  </body>
+</html>
