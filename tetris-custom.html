@@ -105,6 +105,34 @@
         background: #1d4ed8;
       }
 
+      .mode-controls {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .skin-controls {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .mode-button,
+      .skin-button {
+        min-height: 40px;
+        background: #e5e7eb;
+        color: #111827;
+        padding: 6px;
+      }
+
+      .mode-button[aria-pressed="true"],
+      .skin-button[aria-pressed="true"] {
+        background: #2563eb;
+        color: #ffffff;
+      }
+
       ul {
         margin: 8px 0 0;
         padding-left: 20px;
@@ -172,10 +200,29 @@
         </div>
 
         <div class="box">
+          <div class="label">MODE</div>
+          <div class="mode-controls" aria-label="テトリスのモード">
+            <button class="mode-button" type="button" data-mode="normal" aria-pressed="true">ノーマル</button>
+            <button class="mode-button" type="button" data-mode="warped" aria-pressed="false">変形</button>
+          </div>
+        </div>
+
+        <div class="box">
+          <div class="label">SKIN</div>
+          <div class="skin-controls" aria-label="ミノのスキン">
+            <button class="skin-button" type="button" data-skin="classic" aria-pressed="true">クラシック</button>
+            <button class="skin-button" type="button" data-skin="neon" aria-pressed="false">ネオン</button>
+            <button class="skin-button" type="button" data-skin="mono" aria-pressed="false">モノ</button>
+            <button class="skin-button" type="button" data-skin="candy" aria-pressed="false">キャンディ</button>
+            <button class="skin-button" type="button" data-skin="galaxy" aria-pressed="false">ギャラクシー</button>
+          </div>
+        </div>
+
+        <div class="box">
           <div class="label">KEYBOARD</div>
           <ul>
             <li>← / →: 左右に移動</li>
-            <li>↓: 早く落とす</li>
+            <li>W: 早く落とす</li>
             <li>A: 右回転</li>
             <li>D: 左回転</li>
             <li>S: ホールド</li>
@@ -190,6 +237,8 @@
       const COLS = 10;
       const ROWS = 20;
       const CELL = 30;
+      const LOCK_DELAY = 1500;
+      const LOCK_RESET_LIMIT = 15;
       const TYPES = ["I", "J", "L", "O", "S", "T", "Z"];
       const COLORS = {
         I: "#22d3ee",
@@ -200,15 +249,129 @@
         T: "#a855f7",
         Z: "#ef4444",
       };
-      const SHAPES = {
-        I: [[1, 1, 1, 1]],
-        J: [[1, 0, 0], [1, 1, 1]],
-        L: [[0, 0, 1], [1, 1, 1]],
-        O: [[1, 1], [1, 1]],
-        S: [[0, 1, 1], [1, 1, 0]],
-        T: [[0, 1, 0], [1, 1, 1]],
-        Z: [[1, 1, 0], [0, 1, 1]],
+      const SKINS = {
+        classic: {
+          colors: COLORS,
+          highlight: "rgba(255, 255, 255, 0.2)",
+          shadow: "rgba(0, 0, 0, 0.22)",
+          glow: false,
+        },
+        neon: {
+          colors: {
+            I: "#67e8f9",
+            J: "#60a5fa",
+            L: "#fb923c",
+            O: "#fde047",
+            S: "#4ade80",
+            T: "#c084fc",
+            Z: "#fb7185",
+          },
+          highlight: "rgba(255, 255, 255, 0.38)",
+          shadow: "rgba(0, 0, 0, 0.18)",
+          glow: true,
+        },
+        mono: {
+          colors: {
+            I: "#f8fafc",
+            J: "#dbeafe",
+            L: "#cbd5e1",
+            O: "#e5e7eb",
+            S: "#94a3b8",
+            T: "#bfc7d5",
+            Z: "#64748b",
+          },
+          highlight: "rgba(255, 255, 255, 0.28)",
+          shadow: "rgba(15, 23, 42, 0.28)",
+          glow: false,
+        },
+        candy: {
+          colors: {
+            I: "#7dd3fc",
+            J: "#93c5fd",
+            L: "#fdba74",
+            O: "#fef08a",
+            S: "#86efac",
+            T: "#f0abfc",
+            Z: "#fda4af",
+          },
+          highlight: "rgba(255, 255, 255, 0.48)",
+          shadow: "rgba(127, 29, 29, 0.12)",
+          glow: false,
+        },
+        galaxy: {
+          colors: {
+            I: "#38bdf8",
+            J: "#818cf8",
+            L: "#f472b6",
+            O: "#facc15",
+            S: "#34d399",
+            T: "#c084fc",
+            Z: "#fb7185",
+          },
+          highlight: "rgba(255, 255, 255, 0.5)",
+          shadow: "rgba(15, 23, 42, 0.4)",
+          glow: true,
+          stars: true,
+        },
       };
+      const SHAPE_SETS = {
+        normal: {
+          I: [[1, 1, 1, 1]],
+          J: [[1, 0, 0], [1, 1, 1]],
+          L: [[0, 0, 1], [1, 1, 1]],
+          O: [[1, 1], [1, 1]],
+          S: [[0, 1, 1], [1, 1, 0]],
+          T: [[0, 1, 0], [1, 1, 1]],
+          Z: [[1, 1, 0], [0, 1, 1]],
+        },
+      };
+      const WARPED_SHAPE_SETS = [
+        {
+          I: [[1, 1, 1, 1], [0, 0, 1, 0]],
+          J: [[1, 0, 0], [1, 1, 0]],
+          L: [[0, 0, 1], [1, 1, 1], [1, 0, 0]],
+          O: [[1, 1], [1, 0]],
+          S: [[0, 1, 1], [1, 1, 0], [0, 1, 0]],
+          T: [[0, 1, 0], [1, 1, 0]],
+          Z: [[1, 1, 0], [0, 1, 1], [0, 0, 1]],
+        },
+        {
+          I: [[1, 1, 1], [1, 0, 1]],
+          J: [[1, 0], [1, 0], [1, 1], [0, 1]],
+          L: [[0, 1], [0, 1], [1, 1], [1, 0]],
+          O: [[1, 1], [1, 1], [0, 1]],
+          S: [[0, 1, 1], [1, 1, 0], [0, 1, 0]],
+          T: [[0, 1, 0], [1, 1, 1], [1, 0, 0]],
+          Z: [[1, 1, 0], [0, 1, 0]],
+        },
+        {
+          I: [[1, 1, 1]],
+          J: [[1, 0], [1, 1]],
+          L: [[0, 1], [1, 1]],
+          O: [[1, 1], [1, 0]],
+          S: [[0, 1], [1, 1]],
+          T: [[0, 1, 0], [1, 1, 1], [0, 0, 1]],
+          Z: [[1, 1], [0, 1]],
+        },
+        {
+          I: [[1, 1, 1, 1], [1, 0, 0, 0]],
+          J: [[1, 0, 0], [1, 1, 1], [0, 0, 1]],
+          L: [[0, 0, 1], [1, 1, 1], [1, 0, 0]],
+          O: [[1, 1, 1], [1, 1, 0]],
+          S: [[0, 1, 1], [1, 1, 0], [0, 0, 1]],
+          T: [[0, 1, 0], [1, 1, 0]],
+          Z: [[1, 1, 0], [0, 1, 1], [0, 1, 0]],
+        },
+        {
+          I: [[1, 1, 1, 1], [0, 1, 0, 0]],
+          J: [[1, 0, 0], [1, 1, 1], [0, 1, 0]],
+          L: [[0, 1], [0, 1], [1, 1], [1, 0]],
+          O: [[1, 1], [0, 1]],
+          S: [[0, 1, 0], [1, 1, 1], [1, 0, 0]],
+          T: [[0, 1, 0], [1, 1, 0]],
+          Z: [[1, 1, 0], [0, 1, 1], [1, 0, 0]],
+        },
+      ];
 
       const boardCanvas = document.querySelector("#board");
       const boardCtx = boardCanvas.getContext("2d");
@@ -221,6 +384,8 @@
       const levelEl = document.querySelector("#level");
       const messageEl = document.querySelector("#message");
       const restartButton = document.querySelector("#restart");
+      const modeButtons = document.querySelectorAll(".mode-button");
+      const skinButtons = document.querySelectorAll(".skin-button");
 
       let board;
       let piece;
@@ -231,12 +396,17 @@
       let level;
       let dropInterval;
       let dropCounter;
+      let lockCounter;
+      let lockResetCount;
       let lastTime;
       let isPaused;
       let isGameOver;
       let canHold;
       let animationId;
       let pieceBag;
+      let activeMode = "normal";
+      let activeSkin = "classic";
+      let clearEffects = [];
 
       function createBoard() {
         return Array.from({ length: ROWS }, () => Array(COLS).fill(""));
@@ -261,13 +431,20 @@
       }
 
       function makePiece(type) {
-        const shape = cloneShape(SHAPES[type]);
+        const shape = activeMode === "warped"
+          ? cloneShape(randomWarpedShape(type))
+          : cloneShape(SHAPE_SETS.normal[type]);
         return {
           type,
           shape,
           x: Math.floor((COLS - shape[0].length) / 2),
           y: 0,
         };
+      }
+
+      function randomWarpedShape(type) {
+        const set = WARPED_SHAPE_SETS[Math.floor(Math.random() * WARPED_SHAPE_SETS.length)];
+        return set[type];
       }
 
       function startGame() {
@@ -282,6 +459,9 @@
         level = 1;
         dropInterval = 900;
         dropCounter = 0;
+        lockCounter = 0;
+        lockResetCount = 0;
+        clearEffects = [];
         lastTime = 0;
         isPaused = false;
         isGameOver = false;
@@ -290,6 +470,32 @@
         updateStats();
         draw();
         animationId = requestAnimationFrame(update);
+      }
+
+      function updateModeControls() {
+        modeButtons.forEach((button) => {
+          button.setAttribute("aria-pressed", button.dataset.mode === activeMode);
+        });
+      }
+
+      function setMode(mode) {
+        if (mode === activeMode) return;
+        activeMode = mode;
+        updateModeControls();
+        startGame();
+      }
+
+      function updateSkinControls() {
+        skinButtons.forEach((button) => {
+          button.setAttribute("aria-pressed", button.dataset.skin === activeSkin);
+        });
+      }
+
+      function setSkin(skin) {
+        if (skin === activeSkin) return;
+        activeSkin = skin;
+        updateSkinControls();
+        draw();
       }
 
       function updateStats() {
@@ -329,8 +535,10 @@
 
       function clearLines() {
         let cleared = 0;
+        const clearedRows = [];
         for (let y = ROWS - 1; y >= 0; y--) {
           if (board[y].every(Boolean)) {
+            clearedRows.push(y);
             board.splice(y, 1);
             board.unshift(Array(COLS).fill(""));
             cleared++;
@@ -339,6 +547,7 @@
         }
 
         if (cleared > 0) {
+          startLineClearEffect(clearedRows);
           score += [0, 100, 300, 500, 800][cleared] * level;
           lines += cleared;
           level = Math.floor(lines / 10) + 1;
@@ -347,12 +556,32 @@
         }
       }
 
+      function startLineClearEffect(rows) {
+        const now = performance.now();
+        rows.forEach((row) => {
+          clearEffects.push({
+            row,
+            start: now,
+            particles: Array.from({ length: 34 }, () => ({
+              x: Math.random() * COLS * CELL,
+              y: row * CELL + CELL / 2,
+              vx: (Math.random() - 0.5) * 10,
+              vy: (Math.random() - 0.5) * 8,
+              size: 2 + Math.random() * 6,
+              color: ["#ffffff", "#facc15", "#38bdf8", "#c084fc"][Math.floor(Math.random() * 4)],
+            })),
+          });
+        });
+      }
+
       function spawnPiece() {
         piece = nextPiece;
         piece.x = Math.floor((COLS - piece.shape[0].length) / 2);
         piece.y = 0;
         nextPiece = createPiece();
         canHold = true;
+        lockCounter = 0;
+        lockResetCount = 0;
 
         if (hasCollision(piece)) {
           isGameOver = true;
@@ -361,10 +590,35 @@
         }
       }
 
+      function isGrounded() {
+        return hasCollision(piece, 0, 1);
+      }
+
+      function resetLockDelayAfterMove() {
+        if (!isGrounded()) {
+          lockCounter = 0;
+          lockResetCount = 0;
+          return;
+        }
+
+        if (lockResetCount < LOCK_RESET_LIMIT) {
+          lockCounter = 0;
+          lockResetCount++;
+        }
+      }
+
+      function lockPiece() {
+        mergePiece();
+        clearLines();
+        spawnPiece();
+        updateStats();
+      }
+
       function move(dx) {
         if (isPaused || isGameOver) return;
         if (!hasCollision(piece, dx, 0)) {
           piece.x += dx;
+          resetLockDelayAfterMove();
           draw();
         }
       }
@@ -375,10 +629,10 @@
           piece.y++;
           score += 1;
           updateStats();
+          lockCounter = 0;
+          lockResetCount = 0;
         } else {
-          mergePiece();
-          clearLines();
-          spawnPiece();
+          if (lockCounter >= LOCK_DELAY) lockPiece();
         }
         dropCounter = 0;
         draw();
@@ -392,10 +646,7 @@
           distance++;
         }
         score += distance * 2;
-        mergePiece();
-        clearLines();
-        spawnPiece();
-        updateStats();
+        lockPiece();
         draw();
       }
 
@@ -406,6 +657,7 @@
           if (!hasCollision(piece, kick, 0, rotated)) {
             piece.x += kick;
             piece.shape = rotated;
+            resetLockDelayAfterMove();
             draw();
             return;
           }
@@ -428,6 +680,8 @@
         piece.x = Math.floor((COLS - piece.shape[0].length) / 2);
         piece.y = 0;
         canHold = false;
+        lockCounter = 0;
+        lockResetCount = 0;
 
         if (hasCollision(piece)) {
           isGameOver = true;
@@ -449,10 +703,31 @@
       }
 
       function drawCell(ctx, x, y, size, type) {
-        ctx.fillStyle = COLORS[type];
+        const skin = SKINS[activeSkin];
+        const color = skin.colors[type];
+        ctx.save();
+        if (skin.glow) {
+          ctx.shadowColor = color;
+          ctx.shadowBlur = size * 0.45;
+        }
+        ctx.fillStyle = color;
         ctx.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
-        ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = skin.highlight;
         ctx.fillRect(x * size + 4, y * size + 4, size - 8, 5);
+        ctx.fillStyle = skin.shadow;
+        ctx.fillRect(x * size + 4, y * size + size - 8, size - 8, 3);
+
+        if (skin.stars) {
+          const baseX = x * size;
+          const baseY = y * size;
+          ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+          ctx.fillRect(baseX + size * 0.28, baseY + size * 0.3, 2, 2);
+          ctx.fillRect(baseX + size * 0.68, baseY + size * 0.58, 2, 2);
+          ctx.fillStyle = "rgba(250, 204, 21, 0.95)";
+          ctx.fillRect(baseX + size * 0.52, baseY + size * 0.22, 1.5, 1.5);
+        }
+        ctx.restore();
       }
 
       function drawBoard() {
@@ -512,9 +787,55 @@
         });
       }
 
+      function drawClearEffects(now = performance.now()) {
+        clearEffects = clearEffects.filter((effect) => {
+          const age = now - effect.start;
+          const progress = age / 520;
+          if (progress >= 1) return false;
+
+          const alpha = 1 - progress;
+          const centerX = COLS * CELL / 2;
+          const centerY = effect.row * CELL + CELL / 2;
+          const rowY = effect.row * CELL;
+          boardCtx.save();
+          boardCtx.globalCompositeOperation = "lighter";
+          boardCtx.globalAlpha = alpha * 0.85;
+          const beam = boardCtx.createLinearGradient(0, rowY, COLS * CELL, rowY + CELL);
+          beam.addColorStop(0, "#38bdf8");
+          beam.addColorStop(0.5, "#ffffff");
+          beam.addColorStop(1, "#c084fc");
+          boardCtx.fillStyle = beam;
+          boardCtx.fillRect(0, rowY + CELL * 0.08, COLS * CELL, CELL * 0.84);
+
+          boardCtx.globalAlpha = alpha * 0.75;
+          boardCtx.strokeStyle = "#facc15";
+          boardCtx.lineWidth = 3;
+          boardCtx.beginPath();
+          boardCtx.arc(centerX, centerY, 18 + progress * 170, 0, Math.PI * 2);
+          boardCtx.stroke();
+
+          boardCtx.strokeStyle = "#38bdf8";
+          boardCtx.lineWidth = 2;
+          boardCtx.beginPath();
+          boardCtx.arc(centerX, centerY, 8 + progress * 105, 0, Math.PI * 2);
+          boardCtx.stroke();
+
+          effect.particles.forEach((particle) => {
+            const px = particle.x + particle.vx * age * 0.16;
+            const py = particle.y + particle.vy * age * 0.16;
+            boardCtx.globalAlpha = alpha;
+            boardCtx.fillStyle = particle.color;
+            boardCtx.fillRect(px, py, particle.size, particle.size);
+          });
+          boardCtx.restore();
+          return true;
+        });
+      }
+
       function draw() {
         drawBoard();
         drawPiece();
+        drawClearEffects();
         drawHold();
         drawNext();
       }
@@ -525,17 +846,26 @@
         lastTime = time;
         dropCounter += deltaTime;
 
-        if (dropCounter > dropInterval) {
-          softDrop();
+        if (isGrounded()) {
+          lockCounter += deltaTime;
+          if (lockCounter >= LOCK_DELAY) {
+            lockPiece();
+          }
+        } else if (dropCounter > dropInterval) {
+          piece.y++;
+          dropCounter = 0;
+          lockCounter = 0;
+          lockResetCount = 0;
         }
 
+        draw();
         animationId = requestAnimationFrame(update);
       }
 
       document.addEventListener("keydown", (event) => {
         if (event.key === "ArrowLeft") move(-1);
         if (event.key === "ArrowRight") move(1);
-        if (event.key === "ArrowDown") softDrop();
+        if (event.key.toLowerCase() === "w") softDrop();
         if (event.key.toLowerCase() === "a") rotatePiece("right");
         if (event.key.toLowerCase() === "d") rotatePiece("left");
         if (event.key.toLowerCase() === "s") holdCurrentPiece();
@@ -547,7 +877,15 @@
       });
 
       restartButton.addEventListener("click", startGame);
+      modeButtons.forEach((button) => {
+        button.addEventListener("click", () => setMode(button.dataset.mode));
+      });
+      skinButtons.forEach((button) => {
+        button.addEventListener("click", () => setSkin(button.dataset.skin));
+      });
 
+      updateModeControls();
+      updateSkinControls();
       startGame();
     </script>
   </body>

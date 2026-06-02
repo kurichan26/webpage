@@ -105,6 +105,24 @@
         background: #1d4ed8;
       }
 
+      .mode-controls {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .mode-button {
+        min-height: 40px;
+        background: #e5e7eb;
+        color: #111827;
+      }
+
+      .mode-button[aria-pressed="true"] {
+        background: #2563eb;
+        color: #ffffff;
+      }
+
       ul {
         margin: 10px 0 0;
         padding-left: 20px;
@@ -172,10 +190,18 @@
         </div>
 
         <div class="box">
+          <div class="label">MODE</div>
+          <div class="mode-controls" aria-label="テトリスのモード">
+            <button class="mode-button" type="button" data-mode="normal" aria-pressed="true">ノーマル</button>
+            <button class="mode-button" type="button" data-mode="warped" aria-pressed="false">変形</button>
+          </div>
+        </div>
+
+        <div class="box">
           <div class="label">KEYBOARD</div>
           <ul>
             <li>← / →: 左右に移動</li>
-            <li>↓: 早く落とす</li>
+            <li>W: 早く落とす</li>
             <li>A: 左回転</li>
             <li>D: 右回転</li>
             <li>S: ホールド</li>
@@ -190,6 +216,8 @@
       const COLS = 10;
       const ROWS = 20;
       const CELL = 30;
+      const LOCK_DELAY = 1500;
+      const LOCK_RESET_LIMIT = 15;
       const TYPES = ["I", "J", "L", "O", "S", "T", "Z"];
       const COLORS = {
         I: "#22d3ee",
@@ -200,14 +228,25 @@
         T: "#a855f7",
         Z: "#ef4444",
       };
-      const SHAPES = {
-        I: [[1, 1, 1, 1]],
-        J: [[1, 0, 0], [1, 1, 1]],
-        L: [[0, 0, 1], [1, 1, 1]],
-        O: [[1, 1], [1, 1]],
-        S: [[0, 1, 1], [1, 1, 0]],
-        T: [[0, 1, 0], [1, 1, 1]],
-        Z: [[1, 1, 0], [0, 1, 1]],
+      const SHAPE_SETS = {
+        normal: {
+          I: [[1, 1, 1, 1]],
+          J: [[1, 0, 0], [1, 1, 1]],
+          L: [[0, 0, 1], [1, 1, 1]],
+          O: [[1, 1], [1, 1]],
+          S: [[0, 1, 1], [1, 1, 0]],
+          T: [[0, 1, 0], [1, 1, 1]],
+          Z: [[1, 1, 0], [0, 1, 1]],
+        },
+        warped: {
+          I: [[1, 1, 1, 1], [0, 0, 1, 0]],
+          J: [[1, 0, 0], [1, 1, 0]],
+          L: [[0, 0, 1], [1, 1, 1], [1, 0, 0]],
+          O: [[1, 1], [1, 0]],
+          S: [[0, 1, 1], [1, 1, 0], [0, 1, 0]],
+          T: [[0, 1, 0], [1, 1, 0]],
+          Z: [[1, 1, 0], [0, 1, 1], [0, 0, 1]],
+        },
       };
 
       const boardCanvas = document.querySelector("#board");
@@ -221,6 +260,7 @@
       const levelEl = document.querySelector("#level");
       const messageEl = document.querySelector("#message");
       const restartButton = document.querySelector("#restart");
+      const modeButtons = document.querySelectorAll(".mode-button");
 
       let board;
       let piece;
@@ -231,11 +271,14 @@
       let level;
       let dropInterval;
       let dropCounter;
+      let lockCounter;
+      let lockResetCount;
       let lastTime;
       let isPaused;
       let isGameOver;
       let canHold;
       let animationId;
+      let activeMode = "normal";
 
       function createBoard() {
         return Array.from({ length: ROWS }, () => Array(COLS).fill(""));
@@ -251,7 +294,7 @@
       }
 
       function makePiece(type) {
-        const shape = cloneShape(SHAPES[type]);
+        const shape = cloneShape(SHAPE_SETS[activeMode][type]);
         return {
           type,
           shape,
@@ -271,6 +314,8 @@
         level = 1;
         dropInterval = 900;
         dropCounter = 0;
+        lockCounter = 0;
+        lockResetCount = 0;
         lastTime = 0;
         isPaused = false;
         isGameOver = false;
@@ -279,6 +324,19 @@
         updateStats();
         draw();
         animationId = requestAnimationFrame(update);
+      }
+
+      function updateModeControls() {
+        modeButtons.forEach((button) => {
+          button.setAttribute("aria-pressed", button.dataset.mode === activeMode);
+        });
+      }
+
+      function setMode(mode) {
+        if (mode === activeMode) return;
+        activeMode = mode;
+        updateModeControls();
+        startGame();
       }
 
       function updateStats() {
@@ -342,6 +400,8 @@
         piece.y = 0;
         nextPiece = createPiece();
         canHold = true;
+        lockCounter = 0;
+        lockResetCount = 0;
 
         if (hasCollision(piece)) {
           isGameOver = true;
@@ -350,10 +410,35 @@
         }
       }
 
+      function isGrounded() {
+        return hasCollision(piece, 0, 1);
+      }
+
+      function resetLockDelayAfterMove() {
+        if (!isGrounded()) {
+          lockCounter = 0;
+          lockResetCount = 0;
+          return;
+        }
+
+        if (lockResetCount < LOCK_RESET_LIMIT) {
+          lockCounter = 0;
+          lockResetCount++;
+        }
+      }
+
+      function lockPiece() {
+        mergePiece();
+        clearLines();
+        spawnPiece();
+        updateStats();
+      }
+
       function move(dx) {
         if (isPaused || isGameOver) return;
         if (!hasCollision(piece, dx, 0)) {
           piece.x += dx;
+          resetLockDelayAfterMove();
           draw();
         }
       }
@@ -364,10 +449,10 @@
           piece.y++;
           score += 1;
           updateStats();
+          lockCounter = 0;
+          lockResetCount = 0;
         } else {
-          mergePiece();
-          clearLines();
-          spawnPiece();
+          if (lockCounter >= LOCK_DELAY) lockPiece();
         }
         dropCounter = 0;
         draw();
@@ -381,10 +466,7 @@
           distance++;
         }
         score += distance * 2;
-        mergePiece();
-        clearLines();
-        spawnPiece();
-        updateStats();
+        lockPiece();
         draw();
       }
 
@@ -395,6 +477,7 @@
           if (!hasCollision(piece, kick, 0, rotated)) {
             piece.x += kick;
             piece.shape = rotated;
+            resetLockDelayAfterMove();
             draw();
             return;
           }
@@ -417,6 +500,8 @@
         piece.x = Math.floor((COLS - piece.shape[0].length) / 2);
         piece.y = 0;
         canHold = false;
+        lockCounter = 0;
+        lockResetCount = 0;
 
         if (hasCollision(piece)) {
           isGameOver = true;
@@ -514,17 +599,26 @@
         lastTime = time;
         dropCounter += deltaTime;
 
-        if (dropCounter > dropInterval) {
-          softDrop();
+        if (isGrounded()) {
+          lockCounter += deltaTime;
+          if (lockCounter >= LOCK_DELAY) {
+            lockPiece();
+          }
+        } else if (dropCounter > dropInterval) {
+          piece.y++;
+          dropCounter = 0;
+          lockCounter = 0;
+          lockResetCount = 0;
         }
 
+        draw();
         animationId = requestAnimationFrame(update);
       }
 
       document.addEventListener("keydown", (event) => {
         if (event.key === "ArrowLeft") move(-1);
         if (event.key === "ArrowRight") move(1);
-        if (event.key === "ArrowDown") softDrop();
+        if (event.key.toLowerCase() === "w") softDrop();
         if (event.key.toLowerCase() === "a") rotatePiece("left");
         if (event.key.toLowerCase() === "d") rotatePiece("right");
         if (event.key.toLowerCase() === "s") holdCurrentPiece();
@@ -536,7 +630,11 @@
       });
 
       restartButton.addEventListener("click", startGame);
+      modeButtons.forEach((button) => {
+        button.addEventListener("click", () => setMode(button.dataset.mode));
+      });
 
+      updateModeControls();
       startGame();
     </script>
   </body>
