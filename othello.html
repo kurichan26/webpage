@@ -1,0 +1,680 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>オセロ</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f3f0e8;
+        --panel: #fffdf8;
+        --ink: #1f2428;
+        --muted: #626b70;
+        --line: #d7d0c4;
+        --board: #22735d;
+        --board-dark: #165344;
+        --board-light: #2c8b70;
+        --black: #16191b;
+        --white: #fbfaf5;
+        --gold: #c99328;
+        --danger: #aa3a31;
+        --shadow: rgba(28, 32, 34, 0.16);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          linear-gradient(135deg, rgba(34, 115, 93, 0.12), transparent 34%),
+          var(--bg);
+        color: var(--ink);
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      button {
+        font: inherit;
+      }
+
+      .app {
+        width: min(1120px, 100%);
+        min-height: 100vh;
+        margin: 0 auto;
+        padding: 28px;
+        display: grid;
+        grid-template-columns: minmax(320px, 1fr) 320px;
+        gap: 24px;
+        align-items: center;
+      }
+
+      .game {
+        display: grid;
+        gap: 18px;
+        justify-items: center;
+      }
+
+      .topbar {
+        width: min(100%, 680px);
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 18px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(34px, 6vw, 56px);
+        line-height: 1;
+        letter-spacing: 0;
+      }
+
+      .turn {
+        min-width: 144px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+        color: var(--muted);
+        font-weight: 700;
+      }
+
+      .turn .chip {
+        width: 22px;
+        height: 22px;
+      }
+
+      .board-wrap {
+        width: min(100%, 680px);
+        aspect-ratio: 1;
+        padding: clamp(10px, 2vw, 16px);
+        border-radius: 8px;
+        background: linear-gradient(145deg, #2f2118, #6d4b2d);
+        box-shadow: 0 22px 48px var(--shadow);
+      }
+
+      .board {
+        width: 100%;
+        height: 100%;
+        display: grid;
+        grid-template-columns: repeat(8, 1fr);
+        grid-template-rows: repeat(8, 1fr);
+        border: 2px solid var(--board-dark);
+        background: var(--board);
+      }
+
+      .cell {
+        position: relative;
+        display: grid;
+        place-items: center;
+        width: 100%;
+        aspect-ratio: 1;
+        border: 1px solid rgba(12, 47, 39, 0.8);
+        background:
+          radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.06), transparent 52%),
+          var(--board);
+        cursor: default;
+      }
+
+      .cell.legal {
+        cursor: pointer;
+      }
+
+      .cell.legal::after {
+        content: "";
+        width: 28%;
+        height: 28%;
+        border-radius: 999px;
+        border: 2px solid rgba(255, 255, 255, 0.78);
+        background: rgba(255, 255, 255, 0.16);
+      }
+
+      .cell.last {
+        background:
+          radial-gradient(circle at 50% 50%, rgba(201, 147, 40, 0.38), transparent 42%),
+          var(--board-light);
+      }
+
+      .chip {
+        width: 74%;
+        height: 74%;
+        border-radius: 999px;
+        transform: translateZ(0);
+      }
+
+      .chip.black {
+        background:
+          radial-gradient(circle at 34% 28%, #3b4247, var(--black) 58%);
+        box-shadow:
+          inset -7px -9px 14px rgba(0, 0, 0, 0.34),
+          0 5px 10px rgba(0, 0, 0, 0.24);
+      }
+
+      .chip.white {
+        background:
+          radial-gradient(circle at 34% 28%, #ffffff, #dcd8cc 70%);
+        box-shadow:
+          inset -6px -8px 14px rgba(154, 143, 127, 0.32),
+          0 5px 10px rgba(0, 0, 0, 0.18);
+      }
+
+      .side {
+        align-self: stretch;
+        display: grid;
+        align-content: center;
+        gap: 14px;
+      }
+
+      .panel {
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        box-shadow: 0 12px 32px rgba(28, 32, 34, 0.08);
+      }
+
+      .score {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .score-item {
+        min-height: 92px;
+        padding: 14px;
+        border-radius: 7px;
+        border: 1px solid var(--line);
+        display: grid;
+        align-content: space-between;
+      }
+
+      .score-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      .score-label .chip {
+        width: 18px;
+        height: 18px;
+      }
+
+      .score-value {
+        font-size: 34px;
+        line-height: 1;
+        font-weight: 800;
+      }
+
+      .status {
+        min-height: 84px;
+        margin-top: 12px;
+        padding: 14px;
+        border-radius: 7px;
+        background: #eef5f0;
+        color: #1d4c3f;
+        font-weight: 700;
+        display: grid;
+        align-content: center;
+      }
+
+      .controls {
+        display: grid;
+        gap: 10px;
+      }
+
+      .mode {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        padding: 4px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #f4f1ea;
+      }
+
+      .mode button,
+      .action {
+        min-height: 42px;
+        border-radius: 6px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--ink);
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .mode button.active {
+        border-color: var(--line);
+        background: var(--panel);
+        box-shadow: 0 3px 12px rgba(28, 32, 34, 0.08);
+      }
+
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .action {
+        border-color: var(--line);
+        background: var(--panel);
+      }
+
+      .action.primary {
+        border-color: var(--board-dark);
+        background: var(--board);
+        color: white;
+      }
+
+      .action:disabled {
+        color: #a29a8d;
+        background: #ebe6dc;
+        cursor: not-allowed;
+      }
+
+      .log {
+        min-height: 136px;
+        display: grid;
+        align-content: start;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .log strong {
+        color: var(--ink);
+      }
+
+      @media (max-width: 840px) {
+        .app {
+          min-height: auto;
+          grid-template-columns: 1fr;
+          padding: 20px 14px 28px;
+          align-items: start;
+        }
+
+        .side {
+          width: min(100%, 680px);
+          margin: 0 auto;
+          align-content: start;
+        }
+      }
+
+      @media (max-width: 520px) {
+        .topbar {
+          align-items: start;
+          flex-direction: column;
+        }
+
+        .turn {
+          justify-content: flex-start;
+        }
+
+        .panel {
+          padding: 14px;
+        }
+
+        .score-item {
+          min-height: 82px;
+          padding: 12px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <section class="game" aria-label="オセロ盤">
+        <div class="topbar">
+          <h1>オセロ</h1>
+          <div class="turn" id="turnView">
+            <span class="chip black" aria-hidden="true"></span>
+            <span>黒の番</span>
+          </div>
+        </div>
+        <div class="board-wrap">
+          <div class="board" id="board" role="grid" aria-label="8 x 8 オセロ盤"></div>
+        </div>
+      </section>
+
+      <aside class="side">
+        <div class="panel">
+          <div class="score">
+            <div class="score-item">
+              <div class="score-label">
+                <span class="chip black" aria-hidden="true"></span>
+                <span>黒</span>
+              </div>
+              <div class="score-value" id="blackScore">2</div>
+            </div>
+            <div class="score-item">
+              <div class="score-label">
+                <span class="chip white" aria-hidden="true"></span>
+                <span>白</span>
+              </div>
+              <div class="score-value" id="whiteScore">2</div>
+            </div>
+          </div>
+          <div class="status" id="status">黒の番です</div>
+        </div>
+
+        <div class="panel controls">
+          <div class="mode" aria-label="対戦モード">
+            <button type="button" class="active" id="humanMode">2人</button>
+            <button type="button" id="cpuMode">CPU</button>
+          </div>
+          <div class="actions">
+            <button type="button" class="action" id="undoButton">戻す</button>
+            <button type="button" class="action primary" id="resetButton">新規</button>
+          </div>
+        </div>
+
+        <div class="panel log" id="log">
+          <strong>記録</strong>
+          <span>黒 d3</span>
+        </div>
+      </aside>
+    </main>
+
+    <script>
+      const EMPTY = 0;
+      const BLACK = 1;
+      const WHITE = -1;
+      const SIZE = 8;
+      const DIRECTIONS = [
+        [-1, -1], [-1, 0], [-1, 1],
+        [0, -1],           [0, 1],
+        [1, -1],  [1, 0],  [1, 1],
+      ];
+
+      const boardEl = document.getElementById("board");
+      const blackScoreEl = document.getElementById("blackScore");
+      const whiteScoreEl = document.getElementById("whiteScore");
+      const statusEl = document.getElementById("status");
+      const turnViewEl = document.getElementById("turnView");
+      const logEl = document.getElementById("log");
+      const undoButton = document.getElementById("undoButton");
+      const resetButton = document.getElementById("resetButton");
+      const humanModeButton = document.getElementById("humanMode");
+      const cpuModeButton = document.getElementById("cpuMode");
+
+      let board;
+      let currentPlayer;
+      let legalMoves;
+      let lastMove;
+      let gameOver;
+      let versusCpu = false;
+      let history;
+      let moveLog;
+      let cpuTimer;
+
+      function createBoard() {
+        const next = Array.from({ length: SIZE }, () => Array(SIZE).fill(EMPTY));
+        next[3][3] = WHITE;
+        next[3][4] = BLACK;
+        next[4][3] = BLACK;
+        next[4][4] = WHITE;
+        return next;
+      }
+
+      function cloneBoard(source) {
+        return source.map((row) => row.slice());
+      }
+
+      function inBounds(row, col) {
+        return row >= 0 && row < SIZE && col >= 0 && col < SIZE;
+      }
+
+      function colorName(player) {
+        return player === BLACK ? "黒" : "白";
+      }
+
+      function algebraic(row, col) {
+        return `${String.fromCharCode(97 + col)}${row + 1}`;
+      }
+
+      function findFlips(row, col, player, source = board) {
+        if (source[row][col] !== EMPTY) {
+          return [];
+        }
+
+        const flips = [];
+        for (const [dr, dc] of DIRECTIONS) {
+          const line = [];
+          let r = row + dr;
+          let c = col + dc;
+
+          while (inBounds(r, c) && source[r][c] === -player) {
+            line.push([r, c]);
+            r += dr;
+            c += dc;
+          }
+
+          if (line.length && inBounds(r, c) && source[r][c] === player) {
+            flips.push(...line);
+          }
+        }
+        return flips;
+      }
+
+      function getLegalMoves(player, source = board) {
+        const moves = [];
+        for (let row = 0; row < SIZE; row += 1) {
+          for (let col = 0; col < SIZE; col += 1) {
+            const flips = findFlips(row, col, player, source);
+            if (flips.length) {
+              moves.push({ row, col, flips });
+            }
+          }
+        }
+        return moves;
+      }
+
+      function countPieces(source = board) {
+        let black = 0;
+        let white = 0;
+        for (const row of source) {
+          for (const cell of row) {
+            if (cell === BLACK) black += 1;
+            if (cell === WHITE) white += 1;
+          }
+        }
+        return { black, white };
+      }
+
+      function saveState() {
+        history.push({
+          board: cloneBoard(board),
+          currentPlayer,
+          lastMove: lastMove ? { ...lastMove } : null,
+          gameOver,
+          moveLog: moveLog.slice(),
+        });
+      }
+
+      function placeMove(row, col, player) {
+        const move = legalMoves.find((item) => item.row === row && item.col === col);
+        if (!move || gameOver) {
+          return false;
+        }
+
+        saveState();
+        board[row][col] = player;
+        for (const [flipRow, flipCol] of move.flips) {
+          board[flipRow][flipCol] = player;
+        }
+        lastMove = { row, col };
+        moveLog.unshift(`${colorName(player)} ${algebraic(row, col)}`);
+        currentPlayer = -player;
+        refreshTurn();
+        return true;
+      }
+
+      function refreshTurn() {
+        legalMoves = getLegalMoves(currentPlayer);
+
+        if (!legalMoves.length) {
+          const otherMoves = getLegalMoves(-currentPlayer);
+          if (!otherMoves.length) {
+            gameOver = true;
+            render();
+            return;
+          }
+          moveLog.unshift(`${colorName(currentPlayer)} パス`);
+          currentPlayer = -currentPlayer;
+          legalMoves = getLegalMoves(currentPlayer);
+        }
+
+        render();
+        queueCpuMove();
+      }
+
+      function chooseCpuMove() {
+        const corners = new Set(["0,0", "0,7", "7,0", "7,7"]);
+        const edges = legalMoves.filter((move) => (
+          move.row === 0 || move.row === 7 || move.col === 0 || move.col === 7
+        ));
+        const cornerMoves = legalMoves.filter((move) => corners.has(`${move.row},${move.col}`));
+        const pool = cornerMoves.length ? cornerMoves : edges.length ? edges : legalMoves;
+        return pool
+          .slice()
+          .sort((a, b) => b.flips.length - a.flips.length)[0];
+      }
+
+      function queueCpuMove() {
+        clearTimeout(cpuTimer);
+        if (!versusCpu || gameOver || currentPlayer !== WHITE) {
+          return;
+        }
+
+        cpuTimer = setTimeout(() => {
+          const move = chooseCpuMove();
+          if (move) {
+            placeMove(move.row, move.col, WHITE);
+          }
+        }, 420);
+      }
+
+      function render() {
+        const scores = countPieces();
+        blackScoreEl.textContent = String(scores.black);
+        whiteScoreEl.textContent = String(scores.white);
+        undoButton.disabled = !history.length || (versusCpu && currentPlayer === WHITE && !gameOver);
+
+        turnViewEl.innerHTML = "";
+        const chip = document.createElement("span");
+        chip.className = `chip ${currentPlayer === BLACK ? "black" : "white"}`;
+        chip.setAttribute("aria-hidden", "true");
+        const turnText = document.createElement("span");
+        turnText.textContent = gameOver ? "終局" : `${colorName(currentPlayer)}の番`;
+        turnViewEl.append(chip, turnText);
+
+        if (gameOver) {
+          const result = scores.black === scores.white
+            ? "引き分けです"
+            : `${scores.black > scores.white ? "黒" : "白"}の勝ちです`;
+          statusEl.textContent = result;
+        } else if (versusCpu && currentPlayer === WHITE) {
+          statusEl.textContent = "白が考えています";
+        } else {
+          statusEl.textContent = `${colorName(currentPlayer)}の番です`;
+        }
+
+        const legalKeys = new Set(legalMoves.map((move) => `${move.row},${move.col}`));
+        boardEl.innerHTML = "";
+        for (let row = 0; row < SIZE; row += 1) {
+          for (let col = 0; col < SIZE; col += 1) {
+            const cell = document.createElement("button");
+            cell.type = "button";
+            cell.className = "cell";
+            cell.setAttribute("role", "gridcell");
+            cell.setAttribute("aria-label", `${algebraic(row, col)} ${cellLabel(board[row][col])}`);
+            cell.disabled = gameOver || !legalKeys.has(`${row},${col}`) || (versusCpu && currentPlayer === WHITE);
+
+            if (legalKeys.has(`${row},${col}`) && !cell.disabled) {
+              cell.classList.add("legal");
+            }
+            if (lastMove && lastMove.row === row && lastMove.col === col) {
+              cell.classList.add("last");
+            }
+            if (board[row][col] !== EMPTY) {
+              const piece = document.createElement("span");
+              piece.className = `chip ${board[row][col] === BLACK ? "black" : "white"}`;
+              piece.setAttribute("aria-hidden", "true");
+              cell.append(piece);
+            }
+
+            cell.addEventListener("click", () => placeMove(row, col, currentPlayer));
+            boardEl.append(cell);
+          }
+        }
+
+        logEl.innerHTML = "<strong>記録</strong>";
+        for (const item of moveLog.slice(0, 8)) {
+          const line = document.createElement("span");
+          line.textContent = item;
+          logEl.append(line);
+        }
+      }
+
+      function cellLabel(value) {
+        if (value === BLACK) return "黒";
+        if (value === WHITE) return "白";
+        return "空";
+      }
+
+      function resetGame() {
+        clearTimeout(cpuTimer);
+        board = createBoard();
+        currentPlayer = BLACK;
+        legalMoves = [];
+        lastMove = null;
+        gameOver = false;
+        history = [];
+        moveLog = [];
+        humanModeButton.classList.toggle("active", !versusCpu);
+        cpuModeButton.classList.toggle("active", versusCpu);
+        refreshTurn();
+      }
+
+      function undo() {
+        clearTimeout(cpuTimer);
+        if (!history.length) {
+          return;
+        }
+
+        let previous = history.pop();
+        if (versusCpu && history.length && currentPlayer === BLACK && !gameOver) {
+          previous = history.pop();
+        }
+
+        board = cloneBoard(previous.board);
+        currentPlayer = previous.currentPlayer;
+        lastMove = previous.lastMove;
+        gameOver = previous.gameOver;
+        moveLog = previous.moveLog.slice();
+        legalMoves = getLegalMoves(currentPlayer);
+        render();
+      }
+
+      humanModeButton.addEventListener("click", () => {
+        versusCpu = false;
+        resetGame();
+      });
+
+      cpuModeButton.addEventListener("click", () => {
+        versusCpu = true;
+        resetGame();
+      });
+
+      resetButton.addEventListener("click", resetGame);
+      undoButton.addEventListener("click", undo);
+
+      resetGame();
+    </script>
+  </body>
+</html>
